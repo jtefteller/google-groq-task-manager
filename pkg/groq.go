@@ -3,7 +3,9 @@ package pkg
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -55,10 +57,14 @@ func (g *Groq) Chat(request ChatRequest) (*ChatResponse, error) {
 		fmt.Println(resp.Status)
 		b := [1000]byte{}
 		n, err := resp.Body.Read(b[:])
-		fmt.Println(string(b[:n]))
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				fmt.Println(string(b[:n]))
+				return nil, err
+			}
 			panic(err)
 		}
+		fmt.Println(string(b[:n]))
 	}
 
 	var chatResponse ChatResponse

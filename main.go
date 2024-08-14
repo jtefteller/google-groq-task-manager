@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/jtefteller/tasks/pkg"
@@ -50,7 +52,20 @@ func tasksMain() {
 		pkg.ListAllTasks(tasksService)
 	} else if recommendation {
 		tasks := pkg.ListTasks(tasksService, taskList)
-		pkg.Recommendation(llm, tasks, prompt)
+		recs := pkg.Recommendation(llm, tasks, prompt)
+
+		fmt.Println("Enter recommendations indeces separated by commas (no spaces): ")
+		// var then variable name then variable type
+		var userRecs string
+		// Taking input from user
+		fmt.Scanln(&userRecs)
+		userRecs = strings.TrimSpace(userRecs)
+		for _, idx := range strings.Split(userRecs, ",") {
+			// Convert string to int
+			intIdx, _ := strconv.Atoi(idx)
+			rec := recs.Recommendations[intIdx]
+			pkg.CreateTask(tasksService, taskList, rec.Title, rec.Notes)
+		}
 	} else {
 		log.Fatalf("No action provided")
 	}
@@ -207,7 +222,6 @@ func localhostServer(wait chan struct{}, storer pkg.Storer, config *oauth2.Confi
 			log.Fatalf("Error: %v", err)
 			return
 		}
-		fmt.Printf("%+v", token)
 		storeToken := pkg.StoreToken{
 			AccessToken:  token.AccessToken,
 			ExpiresIn:    token.Expiry.Second(),

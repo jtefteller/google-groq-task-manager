@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"google.golang.org/api/tasks/v1"
@@ -36,7 +37,15 @@ type ChoiceMessage struct {
 	Content string `json:"content"`
 }
 
-func Recommendation(llm LLM, tasks []*tasks.Task, content string) {
+type Recommendations struct {
+	Recommendations []RecommendationItem `json:"recommendations"`
+}
+type RecommendationItem struct {
+	Title string `json:"title"`
+	Notes string `json:"notes"`
+}
+
+func Recommendation(llm LLM, tasks []*tasks.Task, content string) *Recommendations {
 	var messages []Message
 	schema := bytes.NewBufferString(`{
 		recommendations: [
@@ -83,7 +92,14 @@ func Recommendation(llm LLM, tasks []*tasks.Task, content string) {
 	}
 	if len(response.Choices) == 0 {
 		fmt.Println("No response")
-		return
+		return nil
 	}
-	fmt.Println(response.Choices[0].Message.Content)
+	var recommendations Recommendations
+	err = json.NewDecoder(bytes.NewBufferString(response.Choices[0].Message.Content)).Decode(&recommendations)
+	if err != nil {
+		panic(err)
+	}
+	recJson, _ := json.MarshalIndent(recommendations, "", "  ")
+	fmt.Println(string(recJson))
+	return &recommendations
 }

@@ -1,7 +1,6 @@
 package pkg
 
 import (
-	"fmt"
 	"log"
 	"time"
 
@@ -30,7 +29,7 @@ func ListAllTasks(tasksService *taskV1.Service) {
 			log.Fatalf("Unable to retrieve tasks: %v", err)
 		}
 		for _, task := range tasks.Items {
-			log.Printf("%s) Title: %s Note: %s", task.Id, task.Title, task.Notes)
+			log.Printf("%s) Title: %s Note: %s --- tasklist.Id: %s", task.Id, task.Title, task.Notes, taskList.Id)
 		}
 	}
 }
@@ -42,8 +41,8 @@ func ListTasks(tasksService *taskV1.Service, taskList string) []*taskV1.Task {
 	}
 	var retTasks []*taskV1.Task
 	for _, task := range tasks.Items {
-		if task.Completed != nil {
-			fmt.Printf("%+v\n", *task.Completed)
+		if task.Completed == nil {
+			continue
 		}
 		retTasks = append(retTasks, task)
 		log.Printf("%s) Title: %s Note: %s", task.Id, task.Title, task.Notes)

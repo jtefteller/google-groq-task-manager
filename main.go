@@ -27,6 +27,7 @@ func init() {
 }
 
 func main() {
+	// f, _ := os.OpenFile(homePath+"/log.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 	loadEnv()
 	tasksMain()
 }
@@ -54,7 +55,7 @@ func tasksMain() {
 		tasks := pkg.ListTasks(tasksService, taskList)
 		recs := pkg.Recommendation(llm, tasks, prompt)
 
-		fmt.Println("Enter recommendations indeces separated by commas (no spaces): ")
+		log.Print("Enter recommendations indeces separated by commas (no spaces): ")
 		// var then variable name then variable type
 		var userRecs string
 		// Taking input from user
@@ -90,7 +91,7 @@ func handleFlags(args []string) (bool, bool, bool, bool, bool, bool, bool, strin
 	)
 
 	flag.StringVar(&taskList, "tl", "", "Task list name: @default, @me etc...")
-	flag.StringVar(&action, "a", "", "Task action: list, create, update, delete, listTaskList, allTasks, recommendation")
+	flag.StringVar(&action, "a", "", "Task action: list, create, update, delete, all, listTaskList, recommendation")
 	flag.StringVar(&taskID, "id", "", "Task ID")
 	flag.StringVar(&taskName, "name", "", "Task name")
 	flag.StringVar(&note, "note", "", "Task note")
@@ -178,7 +179,7 @@ func authorize() *tasks.Service {
 		wait := make(chan struct{})
 		go localhostServer(wait, storer, &config)
 		authCodeUrl := config.AuthCodeURL("state-token", oauth2.ApprovalForce, oauth2.AccessTypeOffline)
-		fmt.Println(authCodeUrl)
+		log.Print(authCodeUrl)
 		<-wait
 		b = storer.Retrieve()
 	}

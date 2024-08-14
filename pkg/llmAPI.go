@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"google.golang.org/api/tasks/v1"
 )
@@ -88,18 +89,18 @@ func Recommendation(llm LLM, tasks []*tasks.Task, content string) *Recommendatio
 		Temperature: 1.0,
 	})
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	if len(response.Choices) == 0 {
-		fmt.Println("No response")
+		log.Print("No response")
 		return nil
 	}
 	var recommendations Recommendations
 	err = json.NewDecoder(bytes.NewBufferString(response.Choices[0].Message.Content)).Decode(&recommendations)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	recJson, _ := json.MarshalIndent(recommendations, "", "  ")
-	fmt.Println(string(recJson))
+	log.Print(string(recJson))
 	return &recommendations
 }

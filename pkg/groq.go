@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -54,17 +55,17 @@ func (g *Groq) Chat(request ChatRequest) (*ChatResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		fmt.Println(resp.Status)
+		log.Print(resp.Status)
 		b := [1000]byte{}
 		n, err := resp.Body.Read(b[:])
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				fmt.Println(string(b[:n]))
+				log.Print(string(b[:n]))
 				return nil, err
 			}
-			panic(err)
+			log.Fatal(err)
 		}
-		fmt.Println(string(b[:n]))
+		log.Println(string(b[:n]))
 	}
 
 	var chatResponse ChatResponse

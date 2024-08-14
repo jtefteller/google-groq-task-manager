@@ -50,12 +50,17 @@ func (g *Groq) Chat(request ChatRequest) (*ChatResponse, error) {
 	}
 
 	defer resp.Body.Close()
-	fmt.Println(resp.Status)
+
 	if resp.StatusCode != 200 {
-		b := [2000]byte{}
-		n, _ := resp.Body.Read(b[:])
+		fmt.Println(resp.Status)
+		b := [1000]byte{}
+		n, err := resp.Body.Read(b[:])
 		fmt.Println(string(b[:n]))
+		if err != nil {
+			panic(err)
+		}
 	}
+
 	var chatResponse ChatResponse
 
 	err = json.NewDecoder(resp.Body).Decode(&chatResponse)

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 
 	"github.com/joho/godotenv"
 	"github.com/jtefteller/tasks/pkg"
@@ -15,7 +16,47 @@ import (
 	"google.golang.org/api/tasks/v1"
 )
 
+var homePath string
+
+func init() {
+	home := os.Getenv("HOME")
+	projectName := ".google-groq-task-manager"
+	homePath = home + "/" + projectName
+}
+
+func main() {
+	loadEnv()
+	tasksMain()
+}
+
 func tasksMain() {
+	tasksService := authorize()
+	llm := newLLM()
+
+	createTask, deleteTask, listTasks, updateTask, allTasks, listTaskList,
+		recommendation, taskID, taskList, taskName, note, prompt, completed := handleFlags(os.Args)
+
+	if createTask {
+		pkg.CreateTask(tasksService, taskList, taskName, note)
+	} else if updateTask {
+		pkg.UpdateTask(tasksService, taskList, taskID, taskName, note, completed)
+	} else if deleteTask {
+		pkg.DeleteTask(tasksService, taskList, taskID)
+	} else if listTaskList {
+		pkg.ListTaskLists(tasksService)
+	} else if listTasks {
+		pkg.ListTasks(tasksService, taskList)
+	} else if allTasks {
+		pkg.ListAllTasks(tasksService)
+	} else if recommendation {
+		tasks := pkg.ListTasks(tasksService, taskList)
+		pkg.Recommendation(llm, tasks, prompt)
+	} else {
+		log.Fatalf("No action provided")
+	}
+}
+
+func handleFlags(args []string) (bool, bool, bool, bool, bool, bool, bool, string, string, string, string, string, bool) {
 	var (
 		createTask     bool
 		deleteTask     bool
@@ -42,10 +83,16 @@ func tasksMain() {
 	flag.BoolVar(&completed, "completed", false, "Task completed")
 	flag.Parse()
 
+	if len(args) < 2 {
+		flag.PrintDefaults()
+		log.Fatalf("Not enough arguments provided")
+	}
+
 	if action == "" {
 		flag.PrintDefaults()
 		log.Fatalf("No action provided")
 	}
+
 	switch action {
 	case "listTaskList":
 		listTaskList = true
@@ -86,27 +133,11 @@ func tasksMain() {
 		log.Fatalf("Invalid action provided")
 	}
 
-	tasksService := authorize()
-	llm := newLLM()
+	return createTask, deleteTask, listTasks, updateTask, allTasks, listTaskList, recommendation, taskID, taskList, taskName, note, prompt, completed
+}
 
-	if createTask {
-		pkg.CreateTask(tasksService, taskList, taskName, note)
-	} else if updateTask {
-		pkg.UpdateTask(tasksService, taskList, taskID, taskName, note, completed)
-	} else if deleteTask {
-		pkg.DeleteTask(tasksService, taskList, taskID)
-	} else if listTaskList {
-		pkg.ListTaskLists(tasksService)
-	} else if listTasks {
-		pkg.ListTasks(tasksService, taskList)
-	} else if allTasks {
-		pkg.ListAllTasks(tasksService)
-	} else if recommendation {
-		tasks := pkg.ListTasks(tasksService, taskList)
-		pkg.Recommendation(llm, tasks, prompt)
-	} else {
-		log.Fatalf("No action provided")
-	}
+func loadEnv() {
+	godotenv.Load(homePath + "/.env")
 }
 
 func newLLM() pkg.LLM {
@@ -114,11 +145,10 @@ func newLLM() pkg.LLM {
 }
 
 func authorize() *tasks.Service {
-	godotenv.Load(".env")
 	config := oauth2.Config{
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		RedirectURL:  "http://localhost:3000",
+		RedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
 		Scopes:       []string{"https://www.googleapis.com/auth/tasks"},
 		Endpoint: oauth2.Endpoint{
 			AuthURL:   "https://accounts.google.com/o/oauth2/auth",
@@ -127,7 +157,7 @@ func authorize() *tasks.Service {
 		},
 	}
 
-	storer := pkg.NewStorer("token.json")
+	storer := pkg.NewStorer(homePath + "/token.json")
 	b := storer.Retrieve()
 	if len(b) == 0 {
 		wait := make(chan struct{})
@@ -153,7 +183,20 @@ func authorize() *tasks.Service {
 }
 
 func localhostServer(wait chan struct{}, storer pkg.Storer, config *oauth2.Config) {
-	server := &http.Server{Addr: ":3000"}
+	redirectURL := os.Getenv("GOOGLE_REDIRECT_URL")
+	if redirectURL == "" {
+		log.Fatalf("GOOGLE_REDIRECT_URL is required")
+	}
+	regexp := regexp.MustCompile(`http://localhost:(\d+)`)
+	matches := regexp.FindStringSubmatch(redirectURL)
+	var addr string
+	if len(matches) < 2 {
+		addr = redirectURL
+	} else {
+		port := matches[1]
+		addr = ":" + port
+	}
+	server := &http.Server{Addr: addr}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		values := r.URL.Query()
@@ -182,8 +225,4 @@ func localhostServer(wait chan struct{}, storer pkg.Storer, config *oauth2.Confi
 	go server.ListenAndServe()
 	<-wait
 	server.Shutdown(context.Background())
-}
-
-func main() {
-	tasksMain()
 }

@@ -1,0 +1,189 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+
+	"github.com/joho/godotenv"
+	"github.com/jtefteller/tasks/pkg"
+	"golang.org/x/oauth2"
+	"google.golang.org/api/option"
+	"google.golang.org/api/tasks/v1"
+)
+
+func tasksMain() {
+	var (
+		createTask     bool
+		deleteTask     bool
+		listTasks      bool
+		updateTask     bool
+		allTasks       bool
+		listTaskList   bool
+		recommendation bool
+		action         string
+		taskID         string
+		taskList       string
+		taskName       string
+		note           string
+		prompt         string
+		completed      bool
+	)
+
+	flag.StringVar(&taskList, "tl", "", "Task list name: @default, @me etc...")
+	flag.StringVar(&action, "a", "", "Task action: list, create, update, delete, listTaskList, allTasks, recommendation")
+	flag.StringVar(&taskID, "id", "", "Task ID")
+	flag.StringVar(&taskName, "name", "", "Task name")
+	flag.StringVar(&note, "note", "", "Task note")
+	flag.StringVar(&prompt, "prompt", "", "Prompt for recommendation")
+	flag.BoolVar(&completed, "completed", false, "Task completed")
+	flag.Parse()
+
+	if action == "" {
+		flag.PrintDefaults()
+		log.Fatalf("No action provided")
+	}
+	switch action {
+	case "listTaskList":
+		listTaskList = true
+	case "list":
+		if taskList == "" {
+			flag.PrintDefaults()
+			log.Fatalf("taskList is required")
+		}
+		listTasks = true
+
+	case "create":
+		createTask = true
+		if taskList == "" || taskName == "" {
+			flag.PrintDefaults()
+			log.Fatalf("taskList, taskName are required")
+		}
+	case "update":
+		updateTask = true
+		if taskList == "" || taskID == "" {
+			flag.PrintDefaults()
+			log.Fatalf("taskList and taskID are required")
+		}
+	case "delete":
+		deleteTask = true
+		if taskList == "" || taskID == "" {
+			flag.PrintDefaults()
+			log.Fatalf("taskList and taskID are required")
+		}
+	case "all":
+		allTasks = true
+	case "recommendation":
+		if prompt == "" || taskList == "" {
+			flag.PrintDefaults()
+			log.Fatalf("prompt and taskList are required")
+		}
+		recommendation = true
+	default:
+		log.Fatalf("Invalid action provided")
+	}
+
+	tasksService := authorize()
+	llm := newLLM()
+
+	if createTask {
+		pkg.CreateTask(tasksService, taskList, taskName, note)
+	} else if updateTask {
+		pkg.UpdateTask(tasksService, taskList, taskID, taskName, note, completed)
+	} else if deleteTask {
+		pkg.DeleteTask(tasksService, taskList, taskID)
+	} else if listTaskList {
+		pkg.ListTaskLists(tasksService)
+	} else if listTasks {
+		pkg.ListTasks(tasksService, taskList)
+	} else if allTasks {
+		pkg.ListAllTasks(tasksService)
+	} else if recommendation {
+		tasks := pkg.ListTasks(tasksService, taskList)
+		pkg.Recommendation(llm, tasks, prompt)
+	} else {
+		log.Fatalf("No action provided")
+	}
+}
+
+func newLLM() pkg.LLM {
+	return pkg.NewGroq(os.Getenv("GROQ_API_KEY"))
+}
+
+func authorize() *tasks.Service {
+	godotenv.Load(".env")
+	config := oauth2.Config{
+		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		RedirectURL:  "http://localhost:3000",
+		Scopes:       []string{"https://www.googleapis.com/auth/tasks"},
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   "https://accounts.google.com/o/oauth2/auth",
+			TokenURL:  "https://oauth2.googleapis.com/token",
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+	}
+
+	storer := pkg.NewStorer("token.json")
+	b := storer.Retrieve()
+	if len(b) == 0 {
+		wait := make(chan struct{})
+		go localhostServer(wait, storer, &config)
+		authCodeUrl := config.AuthCodeURL("state-token", oauth2.ApprovalForce, oauth2.AccessTypeOffline)
+		fmt.Println(authCodeUrl)
+		<-wait
+		b = storer.Retrieve()
+	}
+
+	token, err := storer.ToToken(b)
+	if err != nil {
+		log.Fatalf("ToToken Error: %v", err)
+	}
+	ctx := context.Background()
+	ts := config.TokenSource(ctx, &token)
+	tasksService, err := tasks.NewService(ctx, option.WithScopes(tasks.TasksScope), option.WithTokenSource(ts))
+	if err != nil {
+		log.Fatalf("Unable to create Tasks service: %v", err)
+	}
+
+	return tasksService
+}
+
+func localhostServer(wait chan struct{}, storer pkg.Storer, config *oauth2.Config) {
+	server := &http.Server{Addr: ":3000"}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		values := r.URL.Query()
+		code := values.Get("code")
+
+		token, err := config.Exchange(context.Background(), code)
+		if err != nil {
+			log.Fatalf("Error: %v", err)
+			return
+		}
+		fmt.Printf("%+v", token)
+		storeToken := pkg.StoreToken{
+			AccessToken:  token.AccessToken,
+			ExpiresIn:    token.Expiry.Second(),
+			RefreshToken: token.RefreshToken,
+			Expiry:       token.Expiry,
+			TokenType:    token.TokenType,
+			Scope:        token.Extra("scope").(string),
+		}
+
+		storer.Store(storeToken)
+		close(wait)
+	})
+
+	server.Handler = mux
+	go server.ListenAndServe()
+	<-wait
+	server.Shutdown(context.Background())
+}
+
+func main() {
+	tasksMain()
+}

@@ -51,6 +51,21 @@ func ListTasks(tasksService *taskV1.Service, taskList string) []*taskV1.Task {
 	return retTasks
 }
 
+func GetTask(tasksService *taskV1.Service, taskList string, taskID string) *taskV1.Task {
+	taskListItem, err := tasksService.Tasklists.Get(taskList).Do()
+	if err != nil {
+		log.Fatalf("Unable to retrieve task lists: %v", err)
+	}
+	task, err := tasksService.Tasks.Get(taskListItem.Id, taskID).Do()
+	if err != nil {
+		log.Fatalf("Unable to retrieve task: %v", err)
+	}
+
+	log.Printf("Retrieved task: %s", task.Title)
+
+	return task
+}
+
 func CreateTask(tasksService *taskV1.Service, taskList string, title string, note string) *taskV1.Task {
 	taskListItem, err := tasksService.Tasklists.Get(taskList).Do()
 	if err != nil {

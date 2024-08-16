@@ -27,7 +27,6 @@ func init() {
 }
 
 func main() {
-	// f, _ := os.OpenFile(homePath+"/log.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 	loadEnv()
 	tasksMain()
 }
@@ -52,7 +51,14 @@ func tasksMain() {
 	} else if allTasks {
 		pkg.ListAllTasks(tasksService)
 	} else if recommendation {
-		tasks := pkg.ListTasks(tasksService, taskList)
+		var tasks []*tasks.Task
+		if taskList != "" && taskID != "" {
+			t := pkg.GetTask(tasksService, taskList, taskID)
+			tasks = append(tasks, t)
+		} else {
+			ts := pkg.ListTasks(tasksService, taskList)
+			tasks = ts
+		}
 		recs := pkg.Recommendation(llm, tasks, prompt)
 
 		log.Print("Enter recommendations indeces separated by commas (no spaces): ")
@@ -90,9 +96,9 @@ func handleFlags(args []string) (bool, bool, bool, bool, bool, bool, bool, strin
 		completed      bool
 	)
 
-	flag.StringVar(&taskList, "tl", "", "Task list name: @default, @me etc...")
+	flag.StringVar(&taskList, "lid", "", "Task list ID: @default, @me etc...")
 	flag.StringVar(&action, "a", "", "Task action: list, create, update, delete, all, listTaskList, recommendation")
-	flag.StringVar(&taskID, "id", "", "Task ID")
+	flag.StringVar(&taskID, "tid", "", "Task ID")
 	flag.StringVar(&taskName, "name", "", "Task name")
 	flag.StringVar(&note, "note", "", "Task note")
 	flag.StringVar(&prompt, "prompt", "", "Prompt for recommendation")
@@ -140,9 +146,9 @@ func handleFlags(args []string) (bool, bool, bool, bool, bool, bool, bool, strin
 	case "all":
 		allTasks = true
 	case "recommendation":
-		if prompt == "" || taskList == "" {
+		if prompt == "" || (taskList == "" && taskID == "") {
 			flag.PrintDefaults()
-			log.Fatalf("prompt and taskList are required")
+			log.Fatalf("prompt and taskList or taskID are required")
 		}
 		recommendation = true
 	default:

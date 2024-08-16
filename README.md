@@ -6,9 +6,10 @@ Welcome to the google-groq-task-manager! This README file will provide you with 
 
 To install the project, follow these steps:
 
-1. Clone the repository: `git clone https://github.com/jtefteller/google-groq-task-manager.git`
-2. Navigate to the project directory: `cd google-groq-task-manager`
-3. Install dependencies: `make install`
+1. Follow this guide to setup OAuth2 for google tasks: https://developers.google.com/identity/protocols/oauth2/web-server - note the http://localhost:3000 webserver is already setup in this code.
+2. Clone the repository: `git clone https://github.com/jtefteller/google-groq-task-manager.git`
+3. Navigate to the project directory: `cd google-groq-task-manager`
+4. Install dependencies: `make install`
 
 ## Build
 

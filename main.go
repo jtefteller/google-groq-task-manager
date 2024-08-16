@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
-	"github.com/jtefteller/tasks/pkg"
+	"github.com/jtefteller/google-groq-task-manager/pkg"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
 	"google.golang.org/api/tasks/v1"

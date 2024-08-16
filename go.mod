@@ -1,4 +1,4 @@
-module github.com/jtefteller/tasks
+module github.com/jtefteller/google-groq-task-manager
 
 go 1.22.3
 

@@ -1,4 +1,7 @@
 build:
+	go build -o bin/google-groq-task-manager main.go
+
+install:
 	sh scripts/install.sh
 
 uninstall:
